@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flashpoint — Reaction Time Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --wait: #14161f;
+    --ready: #d63447;
+    --go: #2ecc71;
+    --panel: #1c1f2b;
+    --text: #f2f3f7;
+    --dim: #8a8fa3;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; min-height:100vh;
+    background: var(--wait);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Manrope', sans-serif;
+    color: var(--text);
+    transition: background .15s ease;
+    padding:20px;
+    user-select:none;
+  }
+  .stage{
+    width:100%; max-width:440px;
+    text-align:center;
+  }
+  .title{
+    font-family:'Archivo Black', sans-serif;
+    font-size:28px; letter-spacing:-.01em;
+    margin-bottom:4px;
+  }
+  .subtitle{ color: var(--dim); font-size:13px; margin-bottom:28px; }
+
+  .stats{
+    display:flex; justify-content:center; gap:12px; margin-bottom:22px;
+  }
+  .stat{
+    background: var(--panel);
+    border-radius:12px;
+    padding:12px 18px;
+    min-width:88px;
+  }
+  .stat .label{ font-size:10px; letter-spacing:.15em; color: var(--dim); text-transform:uppercase; }
+  .stat .value{ font-family:'Archivo Black', sans-serif; font-size:20px; margin-top:2px; }
+
+  .zone{
+    width:100%; aspect-ratio: 16/10;
+    border-radius:20px;
+    background: var(--panel);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow: 0 20px 50px -20px rgba(0,0,0,0.6);
+    transition: background .12s ease;
+  }
+  .zone.ready{ background: var(--ready); }
+  .zone.go{ background: var(--go); }
+  .zone .msg{
+    font-family:'Archivo Black', sans-serif;
+    font-size:24px;
+    margin-bottom:6px;
+  }
+  .zone .msg-sub{ font-size:13px; color: rgba(255,255,255,0.85); }
+  .zone.idle .msg-sub, .zone.idle .msg{ color: var(--text); }
+
+  .history{
+    margin-top:20px;
+    display:flex; justify-content:center; gap:6px; flex-wrap:wrap;
+  }
+  .history .chip{
+    font-family:'Manrope', sans-serif;
+    font-weight:700; font-size:12px;
+    background: var(--panel);
+    padding:5px 10px; border-radius:8px;
+    color: var(--dim);
+  }
+  .history .chip.best{ color: var(--go); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="title">FLASHPOINT</div>
+  <div class="subtitle">Test your reaction time</div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="label">Last</div>
+      <div class="value" id="lastVal">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">Best</div>
+      <div class="value" id="bestVal">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">Tries</div>
+      <div class="value" id="triesVal">0</div>
+    </div>
+  </div>
+
+  <div class="zone idle" id="zone">
+    <div class="msg" id="msg">Tap to Start</div>
+    <div class="msg-sub" id="msgSub">Wait for green, then tap as fast as you can</div>
+  </div>
+
+  <div class="history" id="history"></div>
+</div>
+
+<script>
+const zone = document.getElementById('zone');
+const msg = document.getElementById('msg');
+const msgSub = document.getElementById('msgSub');
+const lastVal = document.getElementById('lastVal');
+const bestVal = document.getElementById('bestVal');
+const triesVal = document.getElementById('triesVal');
+const historyEl = document.getElementById('history');
+
+let state = 'idle'; // idle, waiting, ready, go, tooSoon
+let timeoutId = null;
+let startTime = null;
+let best = null;
+let tries = 0;
+let scores = [];
+
+function setState(s){
+  state = s;
+  zone.className = 'zone';
+  if (s === 'waiting'){
+    zone.classList.add('idle');
+    msg.textContent = 'Wait for it...';
+    msgSub.textContent = 'Green means go';
+  } else if (s === 'go'){
+    zone.classList.add('go');
+    msg.textContent = 'TAP NOW!';
+    msgSub.textContent = '';
+  } else if (s === 'tooSoon'){
+    zone.classList.add('ready');
+    msg.textContent = 'Too soon!';
+    msgSub.textContent = 'Tap to try again';
+  } else if (s === 'result'){
+    zone.classList.add('idle');
+  } else {
+    zone.classList.add('idle');
+    msg.textContent = 'Tap to Start';
+    msgSub.textContent = 'Wait for green, then tap as fast as you can';
+  }
+}
+
+function startRound(){
+  setState('waiting');
+  const delay = 1200 + Math.random() * 2200;
+  timeoutId = setTimeout(() => {
+    startTime = performance.now();
+    setState('go');
+  }, delay);
+}
+
+function recordScore(ms){
+  tries++;
+  scores.unshift(ms);
+  if (scores.length > 6) scores.pop();
+  if (best === null || ms < best) best = ms;
+
+  lastVal.textContent = ms + 'ms';
+  bestVal.textContent = best + 'ms';
+  triesVal.textContent = tries;
+
+  historyEl.innerHTML = scores.map(s => `<span class="chip ${s === best ? 'best' : ''}">${s}ms</span>`).join('');
+
+  let verdict = 'Solid reflexes.';
+  if (ms < 220) verdict = 'Lightning fast!';
+  else if (ms > 400) verdict = 'Take your time next round.';
+
+  msg.textContent = ms + 'ms';
+  msgSub.textContent = verdict + ' Tap to try again.';
+  setState('result');
+  zone.classList.add('idle');
+}
+
+zone.addEventListener('click', () => {
+  if (state === 'idle'){
+    startRound();
+  } else if (state === 'waiting'){
+    clearTimeout(timeoutId);
+    setState('tooSoon');
+  } else if (state === 'go'){
+    const reaction = Math.round(performance.now() - startTime);
+    recordScore(reaction);
+  } else if (state === 'tooSoon' || state === 'result'){
+    startRound();
+  }
+});
+
+setState('idle');
+</script>
+</body>
+</html>
